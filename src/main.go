@@ -1,15 +1,15 @@
-package src
+package main
 
 import (
 	"./commands"
-	"fmt"
 	"flag"
+	"fmt"
 	"strings"
 )
 
 var command string
 
-func main() {
+func mainxx() {
 	var config commands.Config
 	config.Url = "http://localhost:19001/"
 	config.Username = "admin1"

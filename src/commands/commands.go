@@ -1,13 +1,13 @@
 package commands
 
 import (
-	"net/http"
 	"bytes"
-	"io/ioutil"
-	"strings"
 	"encoding/json"
-	"github.com/jmoiron/jsonq"
 	"fmt"
+	"github.com/jmoiron/jsonq"
+	"io/ioutil"
+	"net/http"
+	"strings"
 )
 
 func GetBalance(config Config) (float64, error) {

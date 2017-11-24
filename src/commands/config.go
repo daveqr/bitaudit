@@ -1,8 +1,7 @@
 package commands
 
-
 type Config struct {
-	Url string
+	Url      string
 	Username string
 	Password string
 }
