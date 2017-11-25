@@ -21,7 +21,7 @@ func main() {
 
 	command := flag.String("command", "balance", "a command to run")
 
-	var txid = "2d9ad3ca92fdfc3119a1f0b7a8804496affdc9d7620846956bd32815cf2468a6"
+	var txid = "def36856aa9fbebd028f12b7aed6d1f33b26758dae141adc79699fae052d6534"
 	var x = ""
 	x = "gettransaction"
 	//x = "getbalance"
@@ -41,6 +41,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		fmt.Println("xxxxxxxxxxx")
 		fmt.Println(result)
 	} else if strings.Compare(*command, "listtransactions") == 0 {
 		balance, err := commands.ListTransactions(config)
