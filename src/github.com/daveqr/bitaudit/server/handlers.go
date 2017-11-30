@@ -60,17 +60,14 @@ func SignMessageHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("r.PostForm", r.PostForm)
 
 	auditStamp, err := createStamp(r)
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	tx := commands.WriteMessageToBlockchain(auditStamp.Message)
-
+	tx := commands.WriteMessageToBlockchain(auditStamp.Hash().String())
 	auditStamp.Txid = fmt.Sprintf("%x", tx.ID)
-
-	log.Println("txid before save", 	auditStamp.Txid )
-
 	stamp.SaveToDb(auditStamp)
 
 	var tmp struct {
@@ -103,9 +100,7 @@ func VerifyMessageHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	txId := vars["txId"]
 
-	auditStamp := stamp.GetFromDb(txId)
+	as := stamp.GetFromDb(txId)
 
-	log.Println("jsonstmp: ", auditStamp)
-
-	w.Write([]byte("Status: " + auditStamp.StatusString()))
+	w.Write([]byte("Status: " + as.StatusString()))
 }

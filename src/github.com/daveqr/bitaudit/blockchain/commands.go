@@ -27,7 +27,7 @@ func (commands *Commands) Send(from, to string, amount int, message string) *Tra
 }
 
 func (commands *Commands) WriteMessageToBlockchain(message string) *Transaction {
-	log.Println("Writing message to blockchain: " + message)
+
 
 	tx := commands.Send("16to7DptTqSrLyz7Ujymgz587zDZHEP7dr", "17rvbeXKFJt7eKhaZWePEbeWcxkyDRqV5b", 1, message)
 

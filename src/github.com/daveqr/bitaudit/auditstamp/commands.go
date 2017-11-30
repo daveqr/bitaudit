@@ -2,9 +2,11 @@ package auditstamp
 
 import (
 	"encoding/json"
+	hash "github.com/btcsuite/btcd/chaincfg/chainhash"
 	bolt "github.com/coreos/bbolt"
 	blockchain "github.com/daveqr/bitaudit/blockchain"
 	"log"
+	"time"
 )
 
 const auditBucket = "audits"
@@ -12,20 +14,31 @@ const auditDb = "bitaudit.db"
 
 var bcCommands blockchain.Commands
 
-func WriteMessage(stamp AuditStamp) {
+func WriteMessage(message string) {
 	log.Println("writing to bitaudit blockchain")
-	bcCommands.WriteMessageToBlockchain(stamp.Message)
+	bcCommands.WriteMessageToBlockchain("")
 }
 
-func SaveToDb(auditStamp *AuditStamp) {
-
+func SaveToDb(as *AuditStamp) {
 	db, err := bolt.Open(auditDb, 0600, nil)
 	defer db.Close()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	stampJson, _ := json.Marshal(auditStamp)
+	var tmp struct {
+		Signer    string `json:"Signer"`
+		Timestamp time.Time `json:"Timestamp"`
+		Txid      string `json:"Txid"`
+		Status    Status `json:"Status"`
+		Hash      hash.Hash `json:"Hash"`
+	}
+	tmp.Signer = as.Signer
+	tmp.Timestamp = as.Timestamp
+	tmp.Txid = as.Txid
+	tmp.Status = as.Status
+	tmp.Hash = as.Hash()
+	stampJson, _ := json.Marshal(tmp)
 
 	err = db.Update(func(btx *bolt.Tx) error {
 		b, err := btx.CreateBucketIfNotExists([]byte(auditBucket))
@@ -33,7 +46,7 @@ func SaveToDb(auditStamp *AuditStamp) {
 			log.Panic(err)
 		}
 
-		err = b.Put([]byte(auditStamp.Txid), []byte(stampJson))
+		err = b.Put([]byte(as.Txid), stampJson)
 		if err != nil {
 			log.Panic(err)
 		}
@@ -44,7 +57,7 @@ func SaveToDb(auditStamp *AuditStamp) {
 		log.Panic(err)
 	}
 
-	log.Println("Saved to audit db")
+	log.Println("Saved to audit db: " + string(stampJson))
 }
 
 func GetFromDb(txId string) AuditStamp {

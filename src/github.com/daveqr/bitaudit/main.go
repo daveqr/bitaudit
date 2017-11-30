@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/daveqr/bitaudit/blockchain"
-	server "github.com/daveqr/bitaudit/server"
 	"log"
+	"github.com/daveqr/bitaudit/server"
 )
 
 var command string
@@ -33,5 +33,4 @@ func StartBLockchain() {
 
 	commands.CreateWallet()
 	commands.CreateBlockchain(genesisAddress)
-
 }
