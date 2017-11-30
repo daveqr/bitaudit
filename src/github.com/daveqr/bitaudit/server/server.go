@@ -1,27 +1,14 @@
-package main
+package server
 
 import (
-	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/schema"
-	"html/template"
 	"log"
 	"net/http"
 	"strings"
 	"time"
-	"./commands"
 )
 
-func main() {
-	StartServer()
-}
-
-type StampRequest struct {
-	Message   string
-	Signer   string
-	Timestamp string
-	Tx        string
-}
+var config = InitConfig()
 
 func logger(fn func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -41,36 +28,17 @@ func logger(fn func(http.ResponseWriter, *http.Request)) func(http.ResponseWrite
 	}
 }
 
-
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-
-	t, _ := template.ParseFiles("templates/index.html")
-	t.Execute(w, nil)
-}
-
-func SignMessageCmd(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-
-	log.Println("r.PostForm", r.PostForm)
-
-	decoder := schema.NewDecoder()
-	stamp := new(StampRequest)
-	err := decoder.Decode(stamp, r.PostForm)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	fmt.Fprintf(w, "sign message with:"+stamp.Message + stamp.Signer)
-}
-
 func StartServer() {
+	log.Println("Starting server")
+
 	r := mux.NewRouter()
 
 	r.HandleFunc("/", logger(HomeHandler)).Methods("GET")
-	r.HandleFunc("/signmessage", logger(SignMessageCmd)).Methods("POST")
+	r.HandleFunc("/signmessage", logger(SignMessageHandler)).Methods("POST")
 	r.HandleFunc("/signmessage", logger(HomeHandler)).Methods("Get")
+	r.HandleFunc("/verifymessage/{txId}", logger(VerifyMessageHandler)).Methods("Get")
+	r.HandleFunc("/checkbalance", logger(BalanceHandler)).Methods("Get")
+	r.HandleFunc("/printlocalchain", logger(PrintLocalChainHandler)).Methods("Get")
 
 	http.Handle("/", r)
 
@@ -82,5 +50,4 @@ func StartServer() {
 	}
 
 	log.Fatal(srv.ListenAndServe())
-
 }
