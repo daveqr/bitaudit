@@ -28,7 +28,6 @@ func (commands *Commands) Send(from, to string, amount int, message string) *Tra
 
 func (commands *Commands) WriteMessageToBlockchain(message string) *Transaction {
 
-
 	tx := commands.Send("16to7DptTqSrLyz7Ujymgz587zDZHEP7dr", "17rvbeXKFJt7eKhaZWePEbeWcxkyDRqV5b", 1, message)
 
 	log.Println("Wrote message to blockstream: " + fmt.Sprintf("Transaction ID %x:", tx.ID))
@@ -65,7 +64,6 @@ func (commands *Commands) CreateWallet() string {
 	address := wallets.CreateWallet()
 	wallets.SaveToFile()
 
-	//fmt.Printf("Your new address: %s\n", address)
 	log.Println("Your new address: " + address)
 	return address
 }

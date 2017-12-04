@@ -3,12 +3,13 @@ package writebtc
 import (
 	"fmt"
 	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
 	"io/ioutil"
 	"log"
+	"os/user"
 	"path/filepath"
 	"time"
 )
@@ -54,7 +55,7 @@ func (b *Btc) Init(sources []string, privates []*btcec.PrivateKey) (err error) {
 	// for notifications.  See the documentation of the rpcclient
 	// NotificationHandlers type for more details about each handler.
 	ntfnHandlers := rpcclient.NotificationHandlers{
-		OnBlockConnected: func(hash *wire.ShaHash, height int32) {
+		OnBlockConnected: func(hash *chainhash.Hash, height int32, t time.Time) {
 			go b.newBlock(hash, height)
 		},
 	}
@@ -68,7 +69,11 @@ func (b *Btc) Init(sources []string, privates []*btcec.PrivateKey) (err error) {
 	copy(b.privates, privates)
 
 	// Connect to local btcwallet RPC server using websockets.
-	certHomeDir := btcutil.AppDataDir("btcwallet", false)
+	//certHomeDir := btcutil.AppDataDir("btcwallet", false)
+	u, _ := user.Current()
+
+	//certHomeDir := btcutil.AppDataDir(".", false)
+	certHomeDir := u.HomeDir
 	certs, err := ioutil.ReadFile(filepath.Join(certHomeDir, "rpc.cert"))
 	if err != nil {
 		log.Println(err)
@@ -76,11 +81,12 @@ func (b *Btc) Init(sources []string, privates []*btcec.PrivateKey) (err error) {
 	}
 
 	connCfg := &rpcclient.ConnConfig{
-		Host:         "localhost:18332",
+		Host:         "localhost:19001",
 		Endpoint:     "ws",
-		User:         "testuser",
-		Pass:         "notarychain",
+		User:         "admin1",
+		Pass:         "123",
 		Certificates: certs,
+		HTTPPostMode: true,
 	}
 
 	b.Client, err = rpcclient.New(connCfg, &ntfnHandlers)
@@ -89,6 +95,7 @@ func (b *Btc) Init(sources []string, privates []*btcec.PrivateKey) (err error) {
 
 	if err != nil || b.Client == nil {
 		log.Println(err)
+		log.Println("xx")
 		if b.Client == nil {
 			log.Println("client is nil")
 		}
@@ -103,7 +110,7 @@ func (b *Btc) Init(sources []string, privates []*btcec.PrivateKey) (err error) {
 /**
  * Record a hash into the Bitcoin Block Chain OP_RETURN
 **/
-func (b *Btc) RecordHash(hash []byte) (txhash *wire.ShaHash, err error) {
+func (b *Btc) RecordHash(hash []byte) (txhash *chainhash.Hash, err error) {
 
 	txhash = nil
 
@@ -118,34 +125,37 @@ func (b *Btc) RecordHash(hash []byte) (txhash *wire.ShaHash, err error) {
 	builder := txscript.NewScriptBuilder()
 	builder.AddOp(txscript.OP_RETURN)
 	builder.AddData(hash)
-	opReturn := builder.Script()
+	opReturn, _ := builder.Script()
+	//opReturn, _ := txscript.NullDataScript([]byte("the message"))
 	disasm1, err := txscript.DisasmString(opReturn)
 
 	// Create a public key script that pays to the address.
-	addr, err := btcutil.DecodeAddress(b.sources[0], ActiveNet.Params)
-	var changeS []byte
-	changeS, err = txscript.PayToAddrScript(addr)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	//addr, err := btcutil.DecodeAddress(b.sources[0], ActiveNet.Params)
+	//var changeS []byte
+	//changeS, err = txscript.PayToAddrScript(addr)
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
 
-	disasm2, err2 := txscript.DisasmString(changeS)
-	if err2 != nil {
-		log.Println(err2)
-		return
-	}
+	//disasm2, err2 := txscript.DisasmString(changeS)
+	//if err2 != nil {
+	//		log.Println(err2)
+	//		return
+	//	}
 	log.Printf("Op_Return Hex:      %x\n", opReturn)
 	log.Println("Op_Return:          ", disasm1)
-	log.Printf("Change Hex:         %x\n", changeS)
-	log.Println("Change Disassembly: ", disasm2)
+	//log.Printf("Change Hex:         %x\n", changeS)
+	//log.Println("Change Disassembly: ", disasm2)
 
 	tx := wire.NewMsgTx(1)
 
 	txOut := wire.NewTxOut(0, opReturn)
 	tx.AddTxOut(txOut)
-	txOut = wire.NewTxOut(int64(1000), changeS)
-	tx.AddTxOut(txOut)
+	//txOut = wire.NewTxOut(int64(1000), changeS)
+	//tx.AddTxOut(txOut)
+
+	//client.SendRawTransaction(tx, false)
 
 	return
 }
@@ -155,7 +165,7 @@ func (b *Btc) RecordHash(hash []byte) (txhash *wire.ShaHash, err error) {
 // the previous block. (If a block is signed quicker than 5 minutes, then the second
 // block is ignored.)
 //
-func (b *Btc) newBlock(hash *wire.ShaHash, height int32) {
+func (b *Btc) newBlock(hash *chainhash.Hash, height int32) {
 
 	log.Printf("Block connected: %v (%d)", hash, height)
 

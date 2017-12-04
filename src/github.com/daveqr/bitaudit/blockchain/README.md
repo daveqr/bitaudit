@@ -1,0 +1,1 @@
+Based on blockchain_go (https://github.com/Jeiwan/blockchain_go/tree/part_2)

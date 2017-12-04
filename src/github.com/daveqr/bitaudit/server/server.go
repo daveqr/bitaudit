@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-var config = InitConfig()
-
 func logger(fn func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Println("start request")
@@ -36,8 +34,10 @@ func StartServer() {
 	r.HandleFunc("/", logger(HomeHandler)).Methods("GET")
 	r.HandleFunc("/signmessage", logger(SignMessageHandler)).Methods("POST")
 	r.HandleFunc("/signmessage", logger(HomeHandler)).Methods("Get")
-	r.HandleFunc("/verifymessage/{txId}", logger(VerifyMessageHandler)).Methods("Get")
+	r.HandleFunc("/verifymessage/{signer}/{txId}", logger(VerifyMessageHandler)).Methods("Get")
 	r.HandleFunc("/checkbalance", logger(BalanceHandler)).Methods("Get")
+	r.HandleFunc("/checkbitcoinbalance", logger(BitcoinBalanceHandler)).Methods("Get")
+	r.HandleFunc("/listbitcointransactions", logger(BitcoinListTransactionsHandler)).Methods("Get")
 	r.HandleFunc("/printlocalchain", logger(PrintLocalChainHandler)).Methods("Get")
 
 	http.Handle("/", r)

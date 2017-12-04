@@ -2,15 +2,15 @@ package server
 
 import (
 	"fmt"
-	"github.com/daveqr/bitaudit/blockchain"
 	stamp "github.com/daveqr/bitaudit/auditstamp"
+	"github.com/daveqr/bitaudit/bitcoin"
+	"github.com/daveqr/bitaudit/blockchain"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
 	"html/template"
 	"log"
 	"net/http"
 	"time"
-	"github.com/gorilla/mux"
-	"encoding/json"
 )
 
 var commands blockchain.Commands
@@ -35,14 +35,23 @@ func BalanceHandler(w http.ResponseWriter, r *http.Request) {
 	t.Execute(w, balance)
 }
 
-func VerifyMessage(w http.ResponseWriter, r *http.Request) {
+func BitcoinBalanceHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
-	address := r.URL.Query().Get("address")
+	balance, _ := bitcoin.GetWalletBalance()
 
-	balance := commands.GetBalance(address)
+	log.Println("Bitcoin Wallet Balance: " + fmt.Sprintf("%f", balance))
 
-	log.Println("Balance: " + fmt.Sprintf("%f", balance))
+	t, _ := template.ParseFiles("templates/balance.html")
+	t.Execute(w, balance)
+}
+
+func BitcoinListTransactionsHandler(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+
+	balance, _ := bitcoin.ListTransactions()
+
+	log.Println("Bitcoin Wallet Balance: " + fmt.Sprintf("%f", balance))
 
 	t, _ := template.ParseFiles("templates/balance.html")
 	t.Execute(w, balance)
@@ -57,28 +66,28 @@ func PrintLocalChainHandler(w http.ResponseWriter, r *http.Request) {
 func SignMessageHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
-	log.Println("r.PostForm", r.PostForm)
-
-	auditStamp, err := createStamp(r)
-
+	as, err := createStamp(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	tx := commands.WriteMessageToBlockchain(auditStamp.Hash().String())
-	auditStamp.Txid = fmt.Sprintf("%x", tx.ID)
-	stamp.SaveToDb(auditStamp)
+	//bitcoin.SignMessage(as)
+	//if h != nil {
+	//	log.Println("h is not null")
+	//}
 
-	var tmp struct {
-		Txid string `json:"Txid"`
-	}
-	tmp.Txid = auditStamp.Txid
-	a, err := json.Marshal(tmp)
+	tx := commands.WriteMessageToBlockchain(as.Hash().String())
+	as.Txid = fmt.Sprintf("%x", tx.ID)
+
+	stamp.SaveToDb(as)
+	retJson, err := as.ReturnJson()
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	w.Write(a)
+
+	w.Write(retJson)
 }
 
 func createStamp(r *http.Request) (*stamp.AuditStamp, error) {
@@ -90,6 +99,8 @@ func createStamp(r *http.Request) (*stamp.AuditStamp, error) {
 		return nil, err
 	}
 
+	auditStamp.Message = r.FormValue("message")
+	auditStamp.Signer = r.FormValue("signer")
 	auditStamp.Timestamp = time.Now()
 	auditStamp.Status = stamp.StatusCreated
 
@@ -98,9 +109,9 @@ func createStamp(r *http.Request) (*stamp.AuditStamp, error) {
 
 func VerifyMessageHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	txId := vars["txId"]
+	tempAs := stamp.AuditStamp{Signer: vars["signer"], Txid: vars["txId"]}
 
-	as := stamp.GetFromDb(txId)
+	as := stamp.GetFromDb(tempAs.Key())
 
 	w.Write([]byte("Status: " + as.StatusString()))
 }

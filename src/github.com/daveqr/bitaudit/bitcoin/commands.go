@@ -2,16 +2,23 @@ package bitcoin
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/rpcclient"
-	"github.com/jmoiron/jsonq"
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcutil"
 	stamp "github.com/daveqr/bitaudit/auditstamp"
+	"github.com/daveqr/bitaudit/writebtc"
+	"github.com/jmoiron/jsonq"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
+	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
 type Message struct {
@@ -19,7 +26,7 @@ type Message struct {
 	txid   string
 }
 
-func GetBalance(config rpcclient.ConnConfig) (float64, error) {
+func GetWalletBalance() (float64, error) {
 	log.Println("in get balance")
 	var jsonStr = []byte(`{"method":"getbalance"}`)
 
@@ -43,7 +50,7 @@ func GetBalance(config rpcclient.ConnConfig) (float64, error) {
 	return jq.Float("result")
 }
 
-func GetTransaction(config rpcclient.ConnConfig, txid string) interface{} {
+func GetTransaction(txid string) interface{} {
 	var result btcjson.GetTransactionResult
 	if err := DoCommand(btcjson.NewGetTransactionCmd(txid, nil), &result, config); err != nil {
 		panic(err)
@@ -52,33 +59,73 @@ func GetTransaction(config rpcclient.ConnConfig, txid string) interface{} {
 	return result
 }
 
-func SignMessage(request stamp.AuditStamp, config rpcclient.ConnConfig) (string, error) {
-	//var result btcjson.SignMessageCmd
-	//mki5RWvHxZHQQX6YY8Fm2ZnnYAMgzXxvvJ
-	//'[{"txid":"4325a5db66cbc8e9ff6a585cd0e8a2288ea74f9b46d2972b93f63bbb7d09a23e","vout":0}]' '{"1AsJjnWg5QKBThM6mK9jZ8mmo6KUzDjRD":0.00186}'
-	//var jsonStr = []byte(`{"method":"createrawtransaction", "params": [{"4325a5db66cbc8e9ff6a585cd0e8a2288ea74f9b46d2972b93f63bbb7d09a23e",0}] {"mki5RWvHxZHQQX6YY8Fm2ZnnYAMgzXxvvJ":1} }`)
-	//
-	//req, err := http.NewRequest("POST","http://" +  config.Host, bytes.NewBuffer(jsonStr))
-	//req.SetBasicAuth(config.User, config.Pass)
-	//
-	//client := &http.Client{}
-	//resp, err := client.Do(req)
-	//if err != nil {
-	//	panic(err)
-	//}
-	//defer resp.Body.Close()
-	//
-	//body, _ := ioutil.ReadAll(resp.Body)
-	//
-	//data := map[string]interface{}{}
-	//dec := json.NewDecoder(strings.NewReader(string(body)))
-	//dec.Decode(&data)
-	//jq := jsonq.NewQuery(data)
-	//
-	//fmt.Println(string(body))
-	//return jq.String("result")
-	var err = errors.New("asdf")
-	return "", err
+func SignMessage(as *stamp.AuditStamp) (*chainhash.Hash) {
+
+	payToAddr := "mm4dSgXb1WwSamdQFsszkmvXpXCNyPQ5h1"
+
+	address, err := btcutil.DecodeAddress(payToAddr, writebtc.ActiveNet.Params)
+	if err != nil {
+		log.Println(err)
+		panic(err)
+	}
+
+	asHash := as.Hash()
+	opReturn, err := txscript.NullDataScript(asHash.CloneBytes())
+	payToScript, err := txscript.PayToAddrScript(address)
+
+	ntfnHandlers := rpcclient.NotificationHandlers{
+		// TODO check for acceptance
+	}
+
+	msgtx := wire.NewMsgTx(1)
+
+	msgtx.AddTxOut(wire.NewTxOut(0, opReturn))
+	msgtx.AddTxOut(wire.NewTxOut(int64(1), payToScript))
+
+	clientx, err := rpcclient.New(&config, &ntfnHandlers)
+	h, err := clientx.SendRawTransaction(msgtx, true)
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+
+	return h
+}
+
+func Encode(hash []byte) ([]byte, error) {
+	length := len(hash)
+	if length == 0 || length > 30 {
+		return nil, errors.New("Encode can only handle 1 to 30 bytes")
+	}
+	var b []byte = make([]byte, 0, 33)
+	b = append(b, byte(2), byte(length))
+
+	b = append(b, hash...)
+
+	if length < 30 {
+		data := make([]byte, 30-length)
+		b = append(b, data...)
+	}
+
+	b = append(b, byte(0))
+
+	for i := 0; i < 256; i++ {
+		b[len(b)-1] = byte(i)
+		adr2 := hex.EncodeToString(b)
+		_, e := btcutil.DecodeAddress(adr2, writebtc.ActiveNet.Params)
+		if e == nil {
+			return b, nil
+		}
+	}
+
+	log.Print("Failure")
+	return b, errors.New("Couldn't fix the address")
+}
+
+func Decode(addr []byte) []byte {
+	length := int(addr[1])
+	data := addr[2 : length+2]
+	return data
 }
 
 func DoCommand(cmd interface{}, result interface{}, config rpcclient.ConnConfig) error {
@@ -115,10 +162,9 @@ func DoCommand(cmd interface{}, result interface{}, config rpcclient.ConnConfig)
 	return nil
 }
 
-func ListTransactions(config rpcclient.ConnConfig) ([]map[string]interface{}, error) {
+func ListTransactions() ([]map[string]interface{}, error) {
 	log.Println("in list transactions")
 	var jsonStr = []byte(`{"method":"listtransactions", "params": [""]}`)
-	//var jsonStr = []byte(`{"method":"getpeerinfo", "params": [""]}`)
 
 	req, err := http.NewRequest("POST", "http://"+config.Host, bytes.NewBuffer(jsonStr))
 	req.SetBasicAuth(config.User, config.Pass)
@@ -139,30 +185,3 @@ func ListTransactions(config rpcclient.ConnConfig) ([]map[string]interface{}, er
 
 	return jq.ArrayOfObjects("result")
 }
-
-/*
-func SignMessage(config Config, address string) (string, error) {
-	var addr = string(ioutil.ReadFile("server.pem"))
-	var jsonStr = []byte(`{"method":"signmessage", "params": ["addr", "hello world"]}`)
-
-	req, err := http.NewRequest("POST", config.Url, bytes.NewBuffer(jsonStr))
-	req.SetBasicAuth(config.Username, config.Password)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := ioutil.ReadAll(resp.Body)
-
-	data := map[string]interface{}{}
-	dec := json.NewDecoder(strings.NewReader(string(body)))
-	dec.Decode(&data)
-	jq := jsonq.NewQuery(data)
-
-	fmt.Println(string(body))
-	return jq.String("result")
-}
-*/
